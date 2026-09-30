@@ -179,3 +179,13 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Generated application files
+application/static/uploads/*
+application/static/results/*
+
+# Python temporary files
+__pycache__/
+*.pyc
+
+# Jupyter temporary files
+.ipynb_checkpoints/

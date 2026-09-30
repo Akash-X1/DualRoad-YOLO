@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pothole + Crack Detection</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .layout {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+
+        .sidebar {
+            width: 260px;
+            flex-shrink: 0;
+        }
+
+        .main {
+            flex-grow: 1;
+            min-width: 0;
+        }
+
+        .selector-box {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+        }
+
+        .selector-box label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            box-sizing: border-box;
+            background: white;
+        }
+
+        .mode-info {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f9fbfc;
+            font-size: 13px;
+            color: #555;
+            line-height: 1.5;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 5px;
+            font-size: 22px;
+        }
+
+        p.subtitle {
+            color: #7f8c8d;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        .upload-section {
+            border: 2px dashed #3498db;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            background-color: #f9fbfc;
+            margin-bottom: 30px;
+        }
+
+        input[type="file"] {
+            font-size: 15px;
+            margin-bottom: 15px;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        .loader {
+            display: none;
+            text-align: center;
+            font-size: 16px;
+            color: #3498db;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        .selected-mode {
+            display: none;
+            margin-bottom: 18px;
+            padding: 10px 14px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+            color: #2c3e50;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .results-container {
+            display: none;
+        }
+
+        .two-panel {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .panel {
+            flex: 1;
+            min-width: 300px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+            padding: 20px;
+        }
+
+        .panel h2 {
+            font-size: 16px;
+            margin-top: 0;
+            color: #2c3e50;
+        }
+
+        .panel.pothole h2 {
+            border-left: 4px solid #e74c3c;
+            padding-left: 10px;
+        }
+
+        .panel.crack h2 {
+            border-left: 4px solid #f39c12;
+            padding-left: 10px;
+        }
+
+        .stat-box {
+            background: #2c3e50;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .stat-box span {
+            font-size: 26px;
+            font-weight: bold;
+            display: block;
+            color: #e74c3c;
+        }
+
+        .media-display {
+            width: 100%;
+            border-radius: 8px;
+        }
+
+        @media (max-width: 850px) {
+            .layout {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="layout">
+    <div class="sidebar">
+        <div class="selector-box">
+            <label for="modelMode">Select Model Version</label>
+            <select id="modelMode">
+                <option value="original">Original (Uncompressed)</option>
+                <option value="compressed">Compressed (FP16 ONNX)</option>
+            </select>
+
+            <div class="mode-info" id="modeInfo">
+                Final 4 pothole model + Crack 3 crack model.
+            </div>
+        </div>
+    </div>
+
+    <div class="main">
+        <h1>Pothole + Crack Detection</h1>
+        <p class="subtitle">One upload, two specialist models, two separate results.</p>
+
+        <div class="upload-section">
+            <h3>Upload Image or Video</h3>
+            <form id="uploadForm">
+                <input type="file" id="fileInput" name="file" accept="image/*, video/*" required>
+                <br>
+                <button type="submit">Run Detection</button>
+            </form>
+            <div class="loader" id="loader">Processing with both models...</div>
+        </div>
+
+        <div class="selected-mode" id="selectedMode"></div>
+
+        <div class="results-container" id="resultsContainer">
+            <div class="two-panel">
+                <div class="panel pothole">
+                    <h2>Pothole Model (Final 4)</h2>
+                    <div class="stat-box">Potholes Detected<span id="potholeCount">0</span></div>
+                    <img id="potholeImage" class="media-display" style="display:none;" alt="Pothole Result">
+                    <video id="potholeVideo" class="media-display" style="display:none;" controls autoplay muted loop></video>
+                </div>
+
+                <div class="panel crack">
+                    <h2>Crack Model (Crack 3)</h2>
+                    <div class="stat-box">Cracks Detected<span id="crackCount">0</span></div>
+                    <img id="crackImage" class="media-display" style="display:none;" alt="Crack Result">
+                    <video id="crackVideo" class="media-display" style="display:none;" controls autoplay muted loop></video>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const modelMode = document.getElementById('modelMode');
+    const modeInfo = document.getElementById('modeInfo');
+
+    function updateModeInfo() {
+        if (modelMode.value === 'compressed') {
+            modeInfo.textContent = 'Compressed FP16 ONNX: Final 4 + Crack 3.';
+        } else {
+            modeInfo.textContent = 'Original PyTorch: Final 4 + Crack 3.';
+        }
+    }
+
+    modelMode.addEventListener('change', updateModeInfo);
+    updateModeInfo();
+
+    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const selectedMode = modelMode.value;
+
+        document.getElementById('loader').style.display = 'block';
+        document.getElementById('resultsContainer').style.display = 'none';
+        document.getElementById('selectedMode').style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('model_mode', selectedMode);
+
+        const isVideo = file.type.startsWith('video/');
+        const endpoint = isVideo ? '/predict_video' : '/predict_image';
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            document.getElementById('loader').style.display = 'none';
+
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            document.getElementById('potholeCount').textContent = data.pothole_count;
+            document.getElementById('crackCount').textContent = data.crack_count;
+
+            const selectedModeBox = document.getElementById('selectedMode');
+            selectedModeBox.textContent = 'Model version: ' + data.model_label;
+            selectedModeBox.style.display = 'block';
+
+            const potholeImg = document.getElementById('potholeImage');
+            const potholeVid = document.getElementById('potholeVideo');
+            const crackImg = document.getElementById('crackImage');
+            const crackVid = document.getElementById('crackVideo');
+
+            if (isVideo) {
+                potholeImg.style.display = 'none';
+                crackImg.style.display = 'none';
+
+                potholeVid.src = data.pothole_video + '?t=' + new Date().getTime();
+                crackVid.src = data.crack_video + '?t=' + new Date().getTime();
+
+                potholeVid.style.display = 'block';
+                crackVid.style.display = 'block';
+            } else {
+                potholeVid.style.display = 'none';
+                crackVid.style.display = 'none';
+                potholeVid.pause();
+                crackVid.pause();
+
+                potholeImg.src = data.pothole_image + '?t=' + new Date().getTime();
+                crackImg.src = data.crack_image + '?t=' + new Date().getTime();
+
+                potholeImg.style.display = 'block';
+                crackImg.style.display = 'block';
+            }
+
+            document.getElementById('resultsContainer').style.display = 'block';
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred during processing.');
+            document.getElementById('loader').style.display = 'none';
+        }
+    });
+</script>
+
+</body>
+</html>

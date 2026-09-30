@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thesis: Road Damage Detection</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .layout {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            gap: 30px;
+        }
+        .sidebar {
+            width: 260px;
+            flex-shrink: 0;
+        }
+        .main {
+            flex-grow: 1;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+        }
+        h1 { color: #2c3e50; margin-bottom: 5px; font-size: 22px; }
+        p.subtitle { color: #7f8c8d; margin-top: 0; margin-bottom: 20px; }
+
+        .selector-box {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+        }
+        .selector-box label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 8px;
+            color: #2c3e50;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .classes-panel {
+            margin-top: 20px;
+        }
+        .classes-panel h4 {
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        .classes-panel ul {
+            margin: 0;
+            padding-left: 18px;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .upload-section {
+            border: 2px dashed #3498db;
+            padding: 30px;
+            text-align: center;
+            border-radius: 8px;
+            background-color: #f9fbfc;
+            margin-bottom: 30px;
+        }
+        input[type="file"] { font-size: 15px; margin-bottom: 15px; }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+        }
+        button:hover { background-color: #2980b9; }
+        .loader {
+            display: none;
+            text-align: center;
+            font-size: 16px;
+            color: #3498db;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+        .results-container { display: none; margin-top: 20px; }
+        .counts-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .stat-box {
+            background: #2c3e50;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            flex: 1;
+            min-width: 100px;
+        }
+        .stat-box span {
+            font-size: 30px;
+            font-weight: bold;
+            display: block;
+            margin-top: 5px;
+            color: #e74c3c;
+        }
+        .media-display {
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+
+<div class="layout">
+
+    <!-- Left sidebar: model selector -->
+    <div class="sidebar">
+        <div class="selector-box">
+            <label for="modelSelect">Select Model</label>
+            <select id="modelSelect"></select>
+
+            <div class="classes-panel">
+                <h4>Classes in this model</h4>
+                <ul id="classList"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main area: upload + results -->
+    <div class="main">
+        <h1>Road Damage Detection</h1>
+        <p class="subtitle">Pick a model on the left, then upload an image or video.</p>
+
+        <div class="upload-section">
+            <h3>Upload Image or Video</h3>
+            <form id="uploadForm">
+                <input type="file" id="fileInput" name="file" accept="image/*, video/*" required>
+                <br>
+                <button type="submit">Run Detection</button>
+            </form>
+            <div class="loader" id="loader">Processing...</div>
+        </div>
+
+        <div class="results-container" id="resultsContainer">
+            <div class="counts-row" id="countsRow"></div>
+            <img id="resultImage" class="media-display" style="display:none;" alt="Detection Result">
+            <video id="resultVideo" class="media-display" style="display:none;" controls autoplay muted loop></video>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let modelsData = {};
+    const modelSelect = document.getElementById('modelSelect');
+    const classList = document.getElementById('classList');
+
+    // Load the model list from the backend and build the dropdown
+    fetch('/models')
+        .then(res => res.json())
+        .then(data => {
+            modelsData = data;
+            for (const key in data) {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.textContent = data[key].label;
+                modelSelect.appendChild(opt);
+            }
+            updateClassList();
+        });
+
+    function updateClassList() {
+        const key = modelSelect.value;
+        classList.innerHTML = '';
+        if (!key || !modelsData[key]) return;
+        modelsData[key].classes.forEach(cls => {
+            const li = document.createElement('li');
+            li.textContent = cls;
+            classList.appendChild(li);
+        });
+    }
+
+    modelSelect.addEventListener('change', updateClassList);
+
+    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        const modelKey = modelSelect.value;
+        if (!modelKey) {
+            alert("Please select a model first.");
+            return;
+        }
+
+        document.getElementById('loader').style.display = 'block';
+        document.getElementById('resultsContainer').style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('model_key', modelKey);
+
+        const isVideo = file.type.startsWith('video/');
+        const endpoint = isVideo ? '/predict_video' : '/predict_image';
+
+        try {
+            const response = await fetch(endpoint, { method: 'POST', body: formData });
+            const data = await response.json();
+
+            document.getElementById('loader').style.display = 'none';
+
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            // Build one stat box per class this model has
+            const countsRow = document.getElementById('countsRow');
+            countsRow.innerHTML = '';
+            for (const className in data.counts) {
+                const box = document.createElement('div');
+                box.className = 'stat-box';
+                box.innerHTML = `${className}<span>${data.counts[className]}</span>`;
+                countsRow.appendChild(box);
+            }
+
+            const resultImg = document.getElementById('resultImage');
+            const resultVid = document.getElementById('resultVideo');
+
+            if (isVideo) {
+                resultImg.style.display = 'none';
+                resultVid.src = data.result_video + '?t=' + new Date().getTime();
+                resultVid.style.display = 'block';
+            } else {
+                resultVid.style.display = 'none';
+                resultVid.pause();
+                resultImg.src = data.result_image + '?t=' + new Date().getTime();
+                resultImg.style.display = 'block';
+            }
+
+            document.getElementById('resultsContainer').style.display = 'block';
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert("An error occurred during processing.");
+            document.getElementById('loader').style.display = 'none';
+        }
+    });
+</script>
+
+</body>
+</html>
